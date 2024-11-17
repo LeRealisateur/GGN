@@ -1,0 +1,65 @@
+# Configuration du projet
+project_config:
+    seed: 42
+
+# Configuration de l'ensemble de données
+data:
+  path: "data/raw/2023_eegpainmarkers_laval/"  # Chemin vers le fichier de données
+  subjects: ['sub-003']
+  sampling_rate: 256                       # Fréquence d'échantillonnage en Hz
+  preprocessing:
+    filter:
+      type: "bandpass"                     # Type de filtre (bandpass, lowpass, highpass)
+      low_freq: 1                          # Fréquence de coupure basse en Hz
+      high_freq: 40                        # Fréquence de coupure haute en Hz
+    normalization: true                    # Normalisation des données (true/false)
+  train_test_split:
+    test_size: 0.2                         # Pourcentage de données pour le test
+    random_state: 42                        # Graine pour la reproductibilité
+
+# Configuration des modèles
+models:
+  model_1:
+    type: "SVM"                            # Type de modèle (SVM, RandomForest, CNN, etc.)
+    parameters:
+      kernel: "rbf"
+      C: 1.0
+      gamma: "scale"
+  model_2:
+    type: "RandomForest"
+    parameters:
+      n_estimators: 100
+      max_depth: 10
+  model_3:
+    type: "CNN"
+    parameters:
+      input_shape: [1, 64, 64]             # Format pour les signaux EEG en CNN (exemple)
+      num_classes: 2                       # Nombre de classes pour la classification
+      learning_rate: 0.001
+      epochs: 50
+      batch_size: 32
+
+# Configuration de l'entraînement
+training:
+  optimizer: "adam"                        # Type d'optimiseur (adam, sgd, etc.)
+  loss_function: "cross_entropy"           # Fonction de perte
+  early_stopping:
+    enabled: true                          # Arrêt anticipé si la perte ne diminue pas
+    patience: 3                            # Nombre d'itérations sans amélioration
+
+# Paramètres d'évaluation
+evaluation:
+  metrics:                                 # Liste des métriques pour évaluer les performances
+    - "accuracy"
+    - "f1_score"
+    - "confusion_matrix"
+  cross_validation:
+    enabled: true                          # Activer la validation croisée
+    folds: 5                               # Nombre de folds pour la validation croisée
+
+# Sauvegarde et logs
+output:
+  model_save_path: "models/trained"         # Chemin pour sauvegarder les modèles
+  logs_path: "logs/"                       # Chemin pour les logs d'entraînement
+  save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
+  processed_data_save_path: "data/processed"

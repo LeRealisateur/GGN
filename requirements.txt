@@ -1,0 +1,10 @@
+matplotlib
+mne
+numpy
+torch
+torchvision
+torch_geometric
+pandas
+PyYAML
+jupyter
+scikit-learn
