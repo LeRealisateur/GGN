@@ -1,7 +1,11 @@
+import os
+import shutil
+
 import mne
 import numpy as np
 import os.path as path
 import pandas as pd
+import yaml
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -10,23 +14,37 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 import joblib
 
 
-class EEGDataset(Dataset):
-    def __init__(self, data, label):
-        pass
+def save_epochs_by_subject_task(output_dir, subject_id, task, epochs):
+    """
+    Save each epoch for a specific subject and task into separate files.
 
-    def __len__(self):
-        pass
+    Parameters:
+    - output_dir: Base directory where epochs will be saved.
+    - subject_id: ID of the subject.
+    - task: Task name.
+    - epochs: MNE Epochs object containing data.
 
-    def __getitem__(self, idx):
-        pass
+    Returns:
+    - None
+    """
+    # Create directories for subject and task
+    task_dir = os.path.join(output_dir, subject_id, task)
+    if not os.path.exists(task_dir):
+        os.makedirs(task_dir)
+
+    # Iterate through epochs and save each one
+    for i in range(len(epochs.events)):
+        single_epoch = epochs[i:i + 1]
+        epoch_file_path = os.path.join(task_dir, f"{i + 1}-epo.fif")
+        single_epoch.save(epoch_file_path, overwrite=True)
+        print(f"Saved epoch {i + 1} for {subject_id} task {task} to {epoch_file_path}")
 
 
-def load_raw_data(bids_root, subjects_id, task_dict, epochs_length=4):
-    raws = []
+def preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, output_dir, epochs_length=4):
     for subject_id in subjects_id:
         for task in task_dict.keys():
             raw_data = mne.io.read_raw_brainvision(
-                path.join(bids_root, subject_id, "eeg", f"{subject_id}_task-{task}_eeg.vhdr"),
+                path.join('../.', bids_root, subject_id, "eeg", f"{subject_id}_task-{task}_eeg.vhdr"),
                 eog=["VEOG", "HEOG"],
                 misc=["rating", "temp", "stim"],
                 preload=True,
@@ -43,13 +61,16 @@ def load_raw_data(bids_root, subjects_id, task_dict, epochs_length=4):
             )
 
             raw_data.set_annotations(annotations)
-            raws.append(raw_data.copy())
 
-    return raws
+            raw_data = preprocess_raw_data(raw_data)
+
+            # Create epochs
+            epochs = create_epochs(raw_data)
+
+            save_epochs_by_subject_task(output_dir, subject_id, task, epochs)
 
 
-def preprocess_raw_data(raws):
-    raw = mne.concatenate_raws(raws).load_data()
+def preprocess_raw_data(raw):
     raw = raw.pick(['eeg'])
     raw.set_eeg_reference(ref_channels="average", verbose=True)
     raw.notch_filter(np.arange(60, 241, 60), verbose=True)
@@ -75,98 +96,11 @@ def get_labels(epochs, mapping):
     return y.values.astype(int)
 
 
-def split_data(X, y, test_size=0.2, validation_size=0.1, random_state=42):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=validation_size, random_state=random_state)
+def split_data(X, test_size=0.2, validation_size=0.1, random_state=42):
+    X_train, X_test = train_test_split(X, test_size=test_size, random_state=random_state)
+    X_train, X_val = train_test_split(X_train, test_size=validation_size, random_state=random_state)
 
-    return X_train, X_val, X_test, y_train, y_val, y_test
-
-
-def create_dataloaders(X_temporal_train, X_temporal_val, X_temporal_test,
-                       X_topology_train, X_topology_val, X_topology_test,
-                       y_train, y_val, y_test, batch_size=10):
-    X_temporal_train_tensor = X_temporal_train.clone().detach()
-    X_topology_train_tensor = X_topology_train.clone().detach()
-    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-
-    X_temporal_val_tensor = X_temporal_val.clone().detach()
-    X_topology_val_tensor = X_topology_val.clone().detach()
-    y_val_tensor = torch.tensor(y_val, dtype=torch.long)
-
-    X_temporal_test_tensor = X_temporal_test.clone().detach()
-    X_topology_test_tensor = X_topology_test.clone().detach()
-    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
-
-    # Define TensorDatasets and DataLoaders
-    train_data = TensorDataset(X_temporal_train_tensor, X_topology_train_tensor, y_train_tensor)
-    val_data = TensorDataset(X_temporal_val_tensor, X_topology_val_tensor, y_val_tensor)
-    test_data = TensorDataset(X_temporal_test_tensor, X_topology_test_tensor, y_test_tensor)
-
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-
-    return train_loader, val_loader, test_loader
-
-
-def apply_fft_transform(X, n_fft=128):
-    """
-    Applies FFT to each sample in the dataset.
-
-    Parameters:
-    - X: Tensor of shape [samples, channels, time_steps].
-
-    Returns:
-    - Tensor of shape [samples, channels, freq_bins] in the frequency domain.
-    """
-    X_fft = [fft_transform(torch.tensor(sample), n_fft=n_fft) for sample in X]
-    return torch.stack(X_fft)
-
-
-def fft_transform(data, n_fft=128):
-    """
-    Applies FFT to each channel in the EEG data.
-
-    Parameters:
-    - data: Tensor of shape [channels, time_steps] (for one sample).
-    - n_fft: Number of FFT points.
-
-    Returns:
-    - Tensor of shape [channels, freq_bins] representing frequency-domain data.
-    """
-    # Apply FFT along the time dimension (last dimension)
-    data_fft = torch.fft.rfft(data, n=n_fft, dim=-1)
-    data_mag = torch.abs(data_fft)
-    return data_mag
-
-
-def generate_distance_topology(raw):
-    montage = mne.channels.make_standard_montage('standard_1020')
-    raw.set_montage(montage)
-    pos = np.array([ch['loc'][:3] for ch in raw.info['chs'] if ch['kind'] == 2])
-
-    diff = pos[:, None, :] - pos[None, :, :]
-
-    squared_diff = diff ** 2
-    squared_distances = squared_diff.sum(axis=2)
-    conn_matrix = np.sqrt(squared_distances)
-
-    return torch.tensor(conn_matrix)
-
-
-def generate_correlation_topology(raw):
-    """
-    Generates a correlation-based connectivity matrix based on EEG channel signals.
-    """
-    data = raw.get_data(picks='eeg')[:64]
-    # Change to pearson
-    correlation_matrix = np.corrcoef(data)
-    return torch.tensor(correlation_matrix, dtype=torch.float32)
-
-
-def combine_topologies(distance_topology, correlation_topology, alpha=0.5):
-    combined_topology = alpha * distance_topology + (1 - alpha) * correlation_topology
-    return combined_topology
+    return X_train, X_val, X_test
 
 
 def check_label_distribution(loader, label_names=None):
@@ -185,9 +119,65 @@ def check_label_distribution(loader, label_names=None):
     return label_counts
 
 
-def load_data(config):
+def train_test_split_files(preprocessed_data_path, output_path, test_size=0.2, random_state=42):
+    """
+    Split files into train, validation, and test sets while maintaining task structure.
+
+    Parameters:
+    - preprocessed_data_path: Path to the preprocessed data directory.
+    - output_path: Path to save the split data.
+    - test_size: Proportion of data for testing.
+    - val_size: Proportion of training data for validation.
+    - random_state: Random seed for reproducibility.
+
+    Returns:
+    - None
+    """
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    for subject_id in os.listdir(preprocessed_data_path):
+        subject_dir = os.path.join(preprocessed_data_path, subject_id)
+        if not os.path.isdir(subject_dir):
+            continue
+
+        print(f"Processing subject: {subject_id}")
+
+        for task in os.listdir(subject_dir):
+            task_dir = os.path.join(subject_dir, task)
+            if not os.path.isdir(task_dir):
+                continue
+
+            print(f"Processing task: {task}")
+
+            # Collect all epoch files for the task
+            all_files = [
+                os.path.join(task_dir, file)
+                for file in sorted(os.listdir(task_dir))
+                if file.endswith("-epo.fif")
+            ]
+
+            if not all_files:
+                print(f"No epoch files found for {subject_id} task {task}")
+                continue
+
+            # Split files into train, validation, and test
+            train_files, val_files, test_files = split_data(all_files, test_size=test_size, random_state=random_state)
+
+            # Save files into train, val, and test folders
+            for split, files in zip(["train", "val", "test"], [train_files, val_files, test_files]):
+                split_dir = os.path.join(output_path, split, subject_id, task)
+                os.makedirs(split_dir, exist_ok=True)
+                for file in files:
+                    shutil.copy(file, split_dir)
+
+            print(f"Saved splits for {subject_id} task {task} in {output_path}")
+
+
+def preprocess_data(config):
     bids_root = config['data']['path']
     subjects_id = config['data']['subjects']
+    preprocessed_data_path = '.././data/processed'
 
     task_dict = {
         "audioactive": [1, "audio"],
@@ -197,53 +187,16 @@ def load_data(config):
     }
 
     # Load raw data
-    raws = load_raw_data(bids_root, subjects_id, task_dict)
+    preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, preprocessed_data_path)
 
-    # Preprocess raw data
-    raw = preprocess_raw_data(raws)
-
-    # Create epochs
-    epochs = create_epochs(raw)
-
-    # Normalize data
-    X = normalize_epochs_data(epochs.get_data())
-
-    distance_topology = generate_distance_topology(raw)
-    correlation_topology = generate_correlation_topology(raw)
-
-    # Combine topologies
-    alpha = 0.5
-    X_topology = combine_topologies(distance_topology, correlation_topology, alpha=alpha)
-
-    X_temporal = apply_fft_transform(X).float()
-
-    # Get labels
-    mapping = {10001: 0, 10002: 1}
-    y = get_labels(epochs, mapping)
-
-    # Split data
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    X_temporal_train, X_temporal_val, X_temporal_test, y_train, y_val, y_test = split_data(X_temporal, y, test_size=test_size,
-                                                                                           random_state=random_state)
+    train_test_split_files(preprocessed_data_path, '.././data', test_size, random_state)
 
-    X_topology_train = X_topology.repeat(len(y_train), 1, 1)
-    X_topology_val = X_topology.repeat(len(y_val), 1, 1)
-    X_topology_test = X_topology.repeat(len(y_test), 1, 1)
 
-    # Create data loaders
-    train_loader, val_loader, test_loader = create_dataloaders(X_temporal_train, X_temporal_val, X_temporal_test,
-                                                               X_topology_train, X_topology_val, X_topology_test,
-                                                               y_train, y_val, y_test)
+if __name__ == '__main__':
+    with open(r"../config.yml", "r") as file:
+        config = yaml.safe_load(file)
 
-    print("Training Data:")
-    train_label_counts = check_label_distribution(train_loader)
-
-    print("\nValidation Data:")
-    val_label_counts = check_label_distribution(val_loader)
-
-    print("\nTest Data:")
-    test_label_counts = check_label_distribution(test_loader)
-
-    return train_loader, val_loader, test_loader
+    preprocess_data(config)

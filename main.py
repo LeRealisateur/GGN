@@ -24,19 +24,20 @@ import pickle
 import importlib
 import models.GGN.ggn_model as GGN
 import train
-import preprocessing_eeg.preprocess as preprocess
+import preprocessing_eeg.dataset as dataset
 
 if __name__ == '__main__':
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
 
-    train_loader, val_loader, test_loader = preprocess.load_data(config)
+    #preprocess.preprocess_data(config)
+
+    train_loader, val_loader, test_loader = dataset.create_dataloader(config)
 
     ### 1. Choisir le modèle
     in_channels = 65
     hidden_channels = 128
     out_channels = 2
-
 
     model = GGN.GGN(in_channels, hidden_channels, out_channels)
 
