@@ -6,12 +6,11 @@ import numpy as np
 import os.path as path
 import pandas as pd
 import yaml
+from mne import read_epochs
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import torch
-from torch.utils.data import TensorDataset, DataLoader, Dataset
-import joblib
 
 
 def save_epochs_by_subject_task(output_dir, subject_id, task, epochs):
@@ -119,6 +118,40 @@ def check_label_distribution(loader, label_names=None):
     return label_counts
 
 
+def generate_distance_topology(epoch_data):
+    montage = mne.channels.make_standard_montage('standard_1020')
+    epoch_data.set_montage(montage)
+    pos = np.array([
+        ch['loc'][:3] for ch in epoch_data.info['chs']
+        if ch['kind'] == mne.io.constants.FIFF.FIFFV_EEG_CH and np.any(ch['loc'][:3])
+    ])
+
+    diff = pos[:, None, :] - pos[None, :, :]
+
+    squared_diff = diff ** 2
+    squared_distances = squared_diff.sum(axis=2)
+    conn_matrix = np.sqrt(squared_distances)
+
+    return torch.tensor(conn_matrix)
+
+
+def generate_correlation_topology(epoch):
+    """
+    Generates a correlation-based connectivity matrix based on EEG channel signals.
+    """
+    # Change to pearson
+    epoch_data = epoch.get_data()[0]
+    correlation_matrix = np.corrcoef(epoch_data)
+    return torch.tensor(correlation_matrix, dtype=torch.float32)
+
+
+def combine_topologies(distance_topo, correlation_topology, alpha=0.5):
+    data_path = '.././data'
+    combined_topology = (alpha * distance_topo) + ((1 - alpha) * correlation_topology)
+    topology_save_path = os.path.join(data_path, "combined_topology.pt")
+    torch.save(combined_topology, topology_save_path)
+
+
 def train_test_split_files(preprocessed_data_path, output_path, test_size=0.2, random_state=42):
     """
     Split files into train, validation, and test sets while maintaining task structure.
@@ -178,6 +211,7 @@ def preprocess_data(config):
     bids_root = config['data']['path']
     subjects_id = config['data']['subjects']
     preprocessed_data_path = '.././data/processed'
+    headset_file = '.././data/processed/sub-003/audioactive/15-epo.fif'
 
     task_dict = {
         "audioactive": [1, "audio"],
@@ -187,12 +221,17 @@ def preprocess_data(config):
     }
 
     # Load raw data
-    preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, preprocessed_data_path)
+    # preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, preprocessed_data_path)
 
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    train_test_split_files(preprocessed_data_path, '.././data', test_size, random_state)
+    # train_test_split_files(preprocessed_data_path, '.././data', test_size, random_state)
+
+    raw = read_epochs(headset_file, preload=True)
+    distance_topo = generate_distance_topology(raw)
+    correlation_topology = generate_correlation_topology(raw)
+    combine_topologies(distance_topo, correlation_topology)
 
 
 if __name__ == '__main__':

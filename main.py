@@ -35,17 +35,17 @@ if __name__ == '__main__':
     train_loader, val_loader, test_loader = dataset.create_dataloader(config)
 
     ### 1. Choisir le modèle
-    in_channels = 65
+    in_channels = 64
     hidden_channels = 128
     out_channels = 2
 
-    model = GGN.GGN(in_channels, hidden_channels, out_channels)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = GGN.GGN(in_channels, hidden_channels, out_channels, device=device)
 
     ### 3. Entraîner le modèle
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    num_epochs = 10
+    num_epochs = 50
 
     train.train(model, train_loader, val_loader, criterion, optimizer, num_epochs, device)
     train.test(model, test_loader, criterion, device)

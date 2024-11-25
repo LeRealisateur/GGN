@@ -10,37 +10,6 @@ from torch.utils.data import Dataset, DataLoader
 mne.set_log_level("ERROR")
 
 
-def generate_distance_topology(raw):
-    montage = mne.channels.make_standard_montage('standard_1020')
-    raw.set_montage(montage)
-    pos = np.array([
-        ch['loc'][:3] for ch in raw.info['chs']
-        if ch['kind'] == mne.io.constants.FIFF.FIFFV_EEG_CH and np.any(ch['loc'][:3])
-    ])
-
-    diff = pos[:, None, :] - pos[None, :, :]
-
-    squared_diff = diff ** 2
-    squared_distances = squared_diff.sum(axis=2)
-    conn_matrix = np.sqrt(squared_distances)
-
-    return torch.tensor(conn_matrix)
-
-
-def generate_correlation_topology(epoch_data):
-    """
-    Generates a correlation-based connectivity matrix based on EEG channel signals.
-    """
-    # Change to pearson
-    correlation_matrix = np.corrcoef(epoch_data)
-    return torch.tensor(correlation_matrix, dtype=torch.float32)
-
-
-def combine_topologies(distance_topology, correlation_topology, alpha=0.5):
-    combined_topology = alpha * distance_topology + (1 - alpha) * correlation_topology
-    return combined_topology
-
-
 def normalize_epochs_data(X):
     scaler = StandardScaler()
     for i in range(X.shape[0]):
@@ -52,6 +21,9 @@ class EEGDataset(Dataset):
     def __init__(self, base_dir, subjects=None, tasks=None, task_dict=None):
         self.files = []
         self.labels = []
+        self.topologies = []
+
+        epoch_topology = torch.load('./data/combined_topology.pt')
 
         for subject in subjects:
             for task in tasks:
@@ -65,6 +37,7 @@ class EEGDataset(Dataset):
 
                 task_label = task_dict[task][0]
                 self.labels.extend([task_label] * len(task_files))
+                self.topologies.extend([epoch_topology] * len(task_files))
 
     def __len__(self):
         return len(self.files)
@@ -79,12 +52,10 @@ class EEGDataset(Dataset):
         epoch_tensor = torch.tensor(epoch_data, dtype=torch.float32)
         epoch_tensor = self.apply_fft_transform(epoch_tensor)
 
+        epoch_topology = self.topologies[idx]
+
         label = self.labels[idx]
         label_tensor = torch.tensor(label, dtype=torch.long)
-
-        distance_topology = generate_distance_topology(epoch)
-        correlation_topology = generate_correlation_topology(epoch_data)
-        epoch_topology = combine_topologies(distance_topology, correlation_topology)
 
         return epoch_tensor, epoch_topology, label_tensor
 
