@@ -5,6 +5,7 @@ from torch import nn
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import softmax
 import torch.nn.functional as F
+from contextlib import contextmanager
 
 
 class SpatialDecoder(nn.Module):
@@ -59,6 +60,16 @@ class SpatialDecoder(nn.Module):
         # Reshape back to (batch_size, num_nodes, out_channels)
         x = x.view(batch_size, num_nodes, -1)
         return x
+    
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()
 
 
 class AttentiveGraphConvLayer(MessagePassing, ABC):
@@ -109,3 +120,13 @@ class AttentiveGraphConvLayer(MessagePassing, ABC):
 
     def update(self, aggr_out):
         return aggr_out
+    
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()

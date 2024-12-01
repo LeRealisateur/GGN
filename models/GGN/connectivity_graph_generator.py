@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing
+from contextlib import contextmanager
 
 
 class ConnectivityGraphGenerator(nn.Module):
@@ -70,6 +71,16 @@ class ConnectivityGraphGenerator(nn.Module):
         # Convert to binary adjacency matrix
         sampled_edges = (sampled_edges > 0.5).float()
         return sampled_edges
+    
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()
 
 
 class ParaLearner(nn.Module):
