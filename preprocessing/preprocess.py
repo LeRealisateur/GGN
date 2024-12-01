@@ -180,10 +180,9 @@ def preprocess_data(config):
 
     train_test_split_files(processed_data_save_path, split_data_save_path, test_size, random_state)
 
-def dataloader_to_numpy(loader):
-    print(loader.shape)
+def dataloader_without_topology_to_numpy(loader):
     X, y = [], []
-    for inputs, labels in loader:
+    for inputs, _, labels in loader:
         X.append(inputs.numpy())  # Convertir les tensors en numpy
         y.append(labels.numpy())
     return np.vstack(X), np.hstack(y)

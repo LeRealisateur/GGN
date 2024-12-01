@@ -33,7 +33,6 @@ models:
       in_channels: 64
       hidden_channels: 128
       out_channels: 2
-      num_nodes: 32
 
 # Sauvegarde et logs
 output:
