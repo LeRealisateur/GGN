@@ -181,6 +181,7 @@ def preprocess_data(config):
     train_test_split_files(processed_data_save_path, split_data_save_path, test_size, random_state)
 
 def dataloader_to_numpy(loader):
+    print(loader.shape)
     X, y = [], []
     for inputs, labels in loader:
         X.append(inputs.numpy())  # Convertir les tensors en numpy
