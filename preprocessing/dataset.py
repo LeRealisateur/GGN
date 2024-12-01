@@ -23,7 +23,7 @@ class EEGDataset(Dataset):
         self.labels = []
         self.topologies = []
 
-        epoch_topology = torch.load('./data/combined_topology.pt')
+        epoch_topology = torch.load('../data/combined_topology.pt')
 
         for subject in subjects:
             for task in tasks:
@@ -89,9 +89,10 @@ class EEGDataset(Dataset):
         return data_mag
 
 
-def create_dataloader(config):
-    subjects = config['data']['subjects']
+def create_dataloader(subjects, config):
     tasks = config['data']['tasks']
+    split_data_save_path = config['output']['split_data_save_path']
+
     batch_size = 50
 
     task_dict = {
@@ -101,9 +102,9 @@ def create_dataloader(config):
         "thermalpassive": [1, "pain"],
     }
 
-    train_dataset = EEGDataset(os.path.join('./data', "train"), subjects, tasks, task_dict)
-    val_dataset = EEGDataset(os.path.join('./data', "val"), subjects, tasks, task_dict)
-    test_dataset = EEGDataset(os.path.join('./data', "test"), subjects, tasks, task_dict)
+    train_dataset = EEGDataset(os.path.join(split_data_save_path, "train"), subjects, tasks, task_dict)
+    val_dataset = EEGDataset(os.path.join(split_data_save_path, "val"), subjects, tasks, task_dict)
+    test_dataset = EEGDataset(os.path.join(split_data_save_path, "test"), subjects, tasks, task_dict)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
