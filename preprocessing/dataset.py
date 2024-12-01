@@ -23,7 +23,7 @@ class EEGDataset(Dataset):
         self.labels = []
         self.topologies = []
 
-        epoch_topology = torch.load('../data/combined_topology.pt')
+        epoch_topology = torch.load('data/combined_topology.pt')
 
         for subject in subjects:
             for task in tasks:
