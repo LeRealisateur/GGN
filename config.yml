@@ -1,7 +1,7 @@
 # Configuration du projet
 project_config:
     seed: 42
-    running_model: "SVM"
+    running_model: ""
 
 # Configuration de l'ensemble de données
 data:
