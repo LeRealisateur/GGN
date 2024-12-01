@@ -11,7 +11,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, num_epochs, dev
 
         train_loader_tqdm = tqdm(train_loader, desc=f"Epoch [{epoch + 1}/{num_epochs}]", leave=False)
         for batch_idx, (x_temporal, x_topology, targets) in enumerate(train_loader_tqdm):
-            x_temporal, targets = x_temporal.to(device), targets.to(device)
+            x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device), targets.to(device)
 
             # Forward pass
             optimizer.zero_grad()
@@ -62,7 +62,7 @@ def test(model, test_loader, criterion, device):
     with model.evaluation_mode():  # Temporarily set model to eval mode
         with torch.no_grad():
             for x_temporal, x_topology, targets in test_loader:
-                x_temporal, targets = x_temporal.to(device), targets.to(device)
+                x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device),targets.to(device)
 
                 output = model(x_temporal, x_topology)
                 test_loss += criterion(output, targets).item()
