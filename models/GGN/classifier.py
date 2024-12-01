@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from contextlib import contextmanager
 
 
 class GGNClassifier(nn.Module):
@@ -12,3 +13,13 @@ class GGNClassifier(nn.Module):
         x = torch.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+    
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()

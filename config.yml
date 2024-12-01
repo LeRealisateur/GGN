@@ -1,11 +1,12 @@
 # Configuration du projet
 project_config:
     seed: 42
+    running_model: ""
 
 # Configuration de l'ensemble de données
 data:
   path: "data/raw/2023_eegpainmarkers_laval/"  # Chemin vers le fichier de données
-  subjects: ['sub-003']#, 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010', 'sub-011', 'sub-012', 'sub-013']
+  subjects: [] #['sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010', 'sub-011', 'sub-012', 'sub-013']
   tasks: ["audioactive", "audiopassive", "thermalactive", "thermalpassive"]
   sampling_rate: 256                       # Fréquence d'échantillonnage en Hz
   preprocessing:
@@ -15,48 +16,23 @@ data:
       high_freq: 40                        # Fréquence de coupure haute en Hz
     normalization: true                    # Normalisation des données (true/false)
   train_test_split:
-    test_size: 0.2                         # Pourcentage de données pour le test
-    random_state: 42                        # Graine pour la reproductibilité
+    test_size: 0.20                         # Pourcentage de données pour le test
+    validation_size: 0.10
+    random_seed: 42                        # Graine pour la reproductibilité
+    random_state: 42
 
 # Configuration des modèles
 models:
-  model_1:
-    type: "SVM"                            # Type de modèle (SVM, RandomForest, CNN, etc.)
+  SVM:
     parameters:
-      kernel: "rbf"
+      kernel: "linear"
       C: 1.0
       gamma: "scale"
-  model_2:
-    type: "RandomForest"
+  GGN:
     parameters:
-      n_estimators: 100
-      max_depth: 10
-  model_3:
-    type: "CNN"
-    parameters:
-      input_shape: [1, 64, 64]             # Format pour les signaux EEG en CNN (exemple)
-      num_classes: 2                       # Nombre de classes pour la classification
-      learning_rate: 0.001
-      epochs: 50
-      batch_size: 32
-
-# Configuration de l'entraînement
-training:
-  optimizer: "adam"                        # Type d'optimiseur (adam, sgd, etc.)
-  loss_function: "cross_entropy"           # Fonction de perte
-  early_stopping:
-    enabled: true                          # Arrêt anticipé si la perte ne diminue pas
-    patience: 3                            # Nombre d'itérations sans amélioration
-
-# Paramètres d'évaluation
-evaluation:
-  metrics:                                 # Liste des métriques pour évaluer les performances
-    - "accuracy"
-    - "f1_score"
-    - "confusion_matrix"
-  cross_validation:
-    enabled: true                          # Activer la validation croisée
-    folds: 5                               # Nombre de folds pour la validation croisée
+      in_channels: 64
+      hidden_channels: 128
+      out_channels: 2
 
 # Sauvegarde et logs
 output:
@@ -64,3 +40,4 @@ output:
   logs_path: "logs/"                       # Chemin pour les logs d'entraînement
   save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
   processed_data_save_path: "data/processed"
+  split_data_save_path: "data/split"

@@ -43,7 +43,7 @@ def preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, outpu
     for subject_id in subjects_id:
         for task in task_dict.keys():
             raw_data = mne.io.read_raw_brainvision(
-                path.join('../.', bids_root, subject_id, "eeg", f"{subject_id}_task-{task}_eeg.vhdr"),
+                path.join(bids_root, subject_id, "eeg", f"{subject_id}_task-{task}_eeg.vhdr"),
                 eog=["VEOG", "HEOG"],
                 misc=["rating", "temp", "stim"],
                 preload=True,
@@ -81,14 +81,6 @@ def create_epochs(raw, t_min=0, t_max=4):
     epochs = mne.Epochs(raw, events, event_id, t_min, t_max, baseline=None)
     return epochs
 
-
-def normalize_epochs_data(X):
-    scaler = StandardScaler()
-    for i in range(X.shape[0]):
-        X[i, :, :] = scaler.fit_transform(X[i, :, :])
-    return X
-
-
 def get_labels(epochs, mapping):
     y = epochs.events[:, 2]
     y = pd.Series(y).map(mapping)
@@ -96,26 +88,13 @@ def get_labels(epochs, mapping):
 
 
 def split_data(X, test_size=0.2, validation_size=0.1, random_state=42):
-    X_train, X_test = train_test_split(X, test_size=test_size, random_state=random_state)
-    X_train, X_val = train_test_split(X_train, test_size=validation_size, random_state=random_state)
+    total_test_size = test_size + validation_size
+    X_train, X_temp = train_test_split(X, test_size=total_test_size, random_state=random_state)
+
+    validation_relative_size = validation_size / total_test_size
+    X_val, X_test = train_test_split(X_temp, test_size=1 - validation_relative_size, random_state=random_state)
 
     return X_train, X_val, X_test
-
-
-def check_label_distribution(loader, label_names=None):
-    if label_names is None:
-        label_names = {0: "audio", 1: "pain"}
-    label_counts = {label: 0 for label in label_names.keys()}
-
-    for _, _, labels in loader:
-        for label in labels:
-            label_counts[label.item()] += 1
-
-    print("Label distribution in loader:")
-    for label, count in label_counts.items():
-        print(f"{label_names[label]}: {count} samples")
-
-    return label_counts
 
 
 def generate_distance_topology(epoch_data):
@@ -146,7 +125,7 @@ def generate_correlation_topology(epoch):
 
 
 def combine_topologies(distance_topo, correlation_topology, alpha=0.5):
-    data_path = '.././data'
+    data_path = 'data'
     combined_topology = (alpha * distance_topo) + ((1 - alpha) * correlation_topology)
     topology_save_path = os.path.join(data_path, "combined_topology.pt")
     torch.save(combined_topology, topology_save_path)
@@ -210,8 +189,9 @@ def train_test_split_files(preprocessed_data_path, output_path, test_size=0.2, r
 def preprocess_data(config):
     bids_root = config['data']['path']
     subjects_id = config['data']['subjects']
-    preprocessed_data_path = '.././data/processed'
-    headset_file = '.././data/processed/sub-003/audioactive/15-epo.fif'
+    preprocessed_data_path = 'data/processed'
+    headset_file = 'headset_configuration.fif'
+    split_data_save_path = config['output']['split_data_save_path']
 
     task_dict = {
         "audioactive": [1, "audio"],
@@ -221,21 +201,21 @@ def preprocess_data(config):
     }
 
     # Load raw data
-    # preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, preprocessed_data_path)
+    preprocess_raw_data_and_save_epochs(bids_root, subjects_id, task_dict, preprocessed_data_path)
 
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    # train_test_split_files(preprocessed_data_path, '.././data', test_size, random_state)
+    train_test_split_files(preprocessed_data_path, split_data_save_path, test_size, random_state)
 
     raw = read_epochs(headset_file, preload=True)
     distance_topo = generate_distance_topology(raw)
     correlation_topology = generate_correlation_topology(raw)
     combine_topologies(distance_topo, correlation_topology)
 
-
-if __name__ == '__main__':
-    with open(r"../config.yml", "r") as file:
-        config = yaml.safe_load(file)
-
-    preprocess_data(config)
+def dataloader_without_topology_to_numpy(loader):
+    X, y = [], []
+    for inputs, _, labels in loader:
+        X.append(inputs.numpy())  # Convertir les tensors en numpy
+        y.append(labels.numpy())
+    return np.vstack(X), np.hstack(y)

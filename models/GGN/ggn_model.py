@@ -1,11 +1,14 @@
+from torchcam.methods import GradCAM
+import matplotlib.pyplot as plt
 import torch
+import numpy as np
 from torch import nn
 from .connectivity_graph_generator import ConnectivityGraphGenerator
 from .spatial_decoder import SpatialDecoder
 from .temporal_cnn import TemporalCNN
 from .temporal_encoder import TemporalEncoder
 from .classifier import GGNClassifier
-
+from contextlib import contextmanager
 
 class GGN(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, device):
@@ -40,4 +43,86 @@ class GGN(nn.Module):
         output = self.classifier(cat_features)
 
         return output
+    
+    def explain_temporal_cnn(self, test_loader, device):
+        """
+        Generate Grad-CAM and visualize the results to explain the predictions.
+
+        Parameters:
+        - test_loader: Data loader to retrieve a batch of input.
+        - device: Device (CPU/GPU).
+
+        Returns:
+        - Grad-CAM visualized on the temporal data.
+        """
+
+        self.temporal_cnn.to(device)
+
+        with self.temporal_cnn.evaluation_mode():  # Utilisation du context manager
+            # Activer temporairement les gradients
+            with torch.set_grad_enabled(True):
+                # Charger un batch de données
+                for x_temporal_batch, _, targets in test_loader:
+                    x_temporal = x_temporal_batch.to(device).requires_grad_()  # Activer le suivi des gradients
+                    targets = targets.to(device)
+                    break  # Prendre un seul batch
+
+                # Passer les données à travers l'encodeur
+                num_nodes = self.in_channels
+                
+                hn = self.temporal_encoder(x_temporal)
+                hn = hn.unsqueeze(1).repeat(1, num_nodes, 1)
+
+                # Initialiser Grad-CAM
+                cam_extractor = GradCAM(self.temporal_cnn, target_layer='conv2')
+
+                # Passe avant
+                outputs = self.temporal_cnn(hn)
+
+                # Extraire la classe prédite
+                predicted_class = torch.argmax(outputs[0]).item()
+                cams = cam_extractor(predicted_class, outputs)
+
+                # Générer la carte Grad-CAM
+                cam = cams[0].squeeze().cpu().numpy()
+                cam = (cam - cam.min()) / (cam.max() - cam.min())  # Normalisation
+
+                # Normalisation de cam_aggregated
+                cam_aggregated = cam.mean(axis=0)
+                cam_aggregated = (cam_aggregated - cam_aggregated.min()) / (cam_aggregated.max() - cam_aggregated.min())
+
+                # Configuration de l'image
+                input_image = x_temporal[0].detach().cpu().numpy()
+                time_steps = input_image.shape[1]
+
+                fig, ax = plt.subplots(figsize=(10, 5))
+
+                # Tracer les données temporelles brutes
+                for i in range(input_image.shape[0]):  # Pour chaque canal
+                    ax.plot(range(time_steps), input_image[i] + i * 10, alpha=0.8, color='black', linewidth=0.8)
+
+                # Ajustement de l'extension
+                extent = [0, time_steps, 0, input_image.shape[0] * 10]  # Corrige ymin à 0 pour éviter inversion
+                grad_cam_image = cam_aggregated[np.newaxis, :]  # Préparer pour affichage 2D
+                ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.5, origin='lower')
+
+                # Ajouter une barre de couleur
+                cbar = plt.colorbar(ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.5, origin='lower'), ax=ax)
+                cbar.set_label("Niveau d'attention temporelle")
+
+                # Étiquettes et titre
+                ax.set_title("Segment de données avec Grad-CAM")
+                ax.set_xlabel("Pas de temps (Milliseconde)")
+                ax.set_ylabel("Canaux (64 canaux)")
+                plt.show()
+
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()
 

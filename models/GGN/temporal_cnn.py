@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from contextlib import contextmanager
 
 
 class TemporalCNN(nn.Module):
@@ -40,3 +41,13 @@ class TemporalCNN(nn.Module):
         # Flatten to (batch_size, hidden_channels)
         x = x.squeeze(-1)
         return x
+    
+    @contextmanager
+    def evaluation_mode(self):
+        original_mode = self.training
+        self.eval()
+        try:
+            yield self
+        finally:
+            if original_mode:
+                self.train()
