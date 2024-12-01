@@ -31,7 +31,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, num_epochs, dev
             val_loss = 0.0
             with torch.no_grad():
                 for x_temporal, x_topology, targets in val_loader:
-                    x_temporal, targets = x_temporal.to(device), targets.to(device)
+                    x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device), targets.to(device)
                     output = model(x_temporal, x_topology)
                     val_loss += criterion(output, targets).item()
 

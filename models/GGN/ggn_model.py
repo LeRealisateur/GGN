@@ -1,6 +1,7 @@
 from torchcam.methods import GradCAM
 import matplotlib.pyplot as plt
 import torch
+import numpy as np
 from torch import nn
 from .connectivity_graph_generator import ConnectivityGraphGenerator
 from .spatial_decoder import SpatialDecoder
