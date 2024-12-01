@@ -206,7 +206,7 @@ def preprocess_data(config):
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    train_test_split_files(preprocessed_data_path, 'data/split', test_size, random_state)
+    train_test_split_files(preprocessed_data_path, split_data_save_path, test_size, random_state)
 
     raw = read_epochs(headset_file, preload=True)
     distance_topo = generate_distance_topology(raw)
