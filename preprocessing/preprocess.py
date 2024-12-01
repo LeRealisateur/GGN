@@ -191,6 +191,7 @@ def preprocess_data(config):
     subjects_id = config['data']['subjects']
     preprocessed_data_path = 'data/processed'
     headset_file = 'headset_configuration.fif'
+    split_data_save_path = config['output']['split_data_save_path']
 
     task_dict = {
         "audioactive": [1, "audio"],
