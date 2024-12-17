@@ -81,6 +81,7 @@ def create_epochs(raw, t_min=0, t_max=4):
     epochs = mne.Epochs(raw, events, event_id, t_min, t_max, baseline=None)
     return epochs
 
+
 def get_labels(epochs, mapping):
     y = epochs.events[:, 2]
     y = pd.Series(y).map(mapping)
@@ -110,7 +111,9 @@ def generate_distance_topology(epoch_data):
     squared_diff = diff ** 2
     squared_distances = squared_diff.sum(axis=2)
     conn_matrix = np.sqrt(squared_distances)
-
+    data_path = 'data'
+    distance_topology_save_path = os.path.join(data_path, "distance_topology.pt")
+    torch.save(torch.tensor(conn_matrix), distance_topology_save_path)
     return torch.tensor(conn_matrix)
 
 
@@ -131,7 +134,7 @@ def combine_topologies(distance_topo, correlation_topology, alpha=0.5):
     torch.save(combined_topology, topology_save_path)
 
 
-def train_test_split_files(preprocessed_data_path, output_path, test_size=0.2, random_state=42):
+def train_test_split_files(preprocessed_data_path, output_path, subjects_id, test_size=0.2, random_state=42):
     """
     Split files into train, validation, and test sets while maintaining task structure.
 
@@ -148,7 +151,7 @@ def train_test_split_files(preprocessed_data_path, output_path, test_size=0.2, r
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    for subject_id in os.listdir(preprocessed_data_path):
+    for subject_id in subjects_id:
         subject_dir = os.path.join(preprocessed_data_path, subject_id)
         if not os.path.isdir(subject_dir):
             continue
@@ -206,12 +209,13 @@ def preprocess_data(config):
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    train_test_split_files(preprocessed_data_path, split_data_save_path, test_size, random_state)
+    train_test_split_files(preprocessed_data_path, split_data_save_path, subjects_id, test_size, random_state)
 
     raw = read_epochs(headset_file, preload=True)
     distance_topo = generate_distance_topology(raw)
     correlation_topology = generate_correlation_topology(raw)
     combine_topologies(distance_topo, correlation_topology)
+
 
 def dataloader_without_topology_to_numpy(loader):
     X, y = [], []

@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
 
+
 def train(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
     model.to(device)
     model.train()
@@ -62,7 +63,7 @@ def test(model, test_loader, criterion, device):
     with model.evaluation_mode():  # Temporarily set model to eval mode
         with torch.no_grad():
             for x_temporal, x_topology, targets in test_loader:
-                x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device),targets.to(device)
+                x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device), targets.to(device)
 
                 output = model(x_temporal, x_topology)
                 test_loss += criterion(output, targets).item()

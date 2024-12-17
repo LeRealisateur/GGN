@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 from torch import nn
+
+from evaluation.saliency_map import visualize_saliency_with_mne, visualize_saliency_3d_with_topology
 from .connectivity_graph_generator import ConnectivityGraphGenerator
 from .spatial_decoder import SpatialDecoder
 from .temporal_cnn import TemporalCNN
@@ -10,40 +12,58 @@ from .temporal_encoder import TemporalEncoder
 from .classifier import GGNClassifier
 from contextlib import contextmanager
 
+
 class GGN(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, device):
+    def __init__(self, in_channels, hidden_channels, out_channels, coords, info, device):
         super(GGN, self).__init__()
         self.in_channels = in_channels
-        self.connectivity_graph = ConnectivityGraphGenerator(in_channels, hidden_channels, out_channels)
+        self.connectivity_graph = ConnectivityGraphGenerator(129, hidden_channels, out_channels)
         self.temporal_encoder = TemporalEncoder(65, 128, 2)
         self.temporal_cnn = TemporalCNN(in_channels=128, hidden_channels=64)
 
-        self.spatial_decoder = SpatialDecoder(hidden_channels, hidden_channels, out_channels, 4, device)
+        self.spatial_decoder = SpatialDecoder(hidden_channels, hidden_channels, out_channels, 4)
 
-        self.classifier = GGNClassifier(hidden_channels, out_channels)
+        self.classifier = GGNClassifier(65, out_channels)
+        self.coords = coords
+        self.info = info
+        self.sampled_edge_indices = None
 
     def forward(self, x_temporal, x_topology):
-        batch_size = x_temporal.size(0)
-        num_nodes = self.in_channels
-
-        # Step 1: Generate adjacency matrices and edge indices
-        sampled_edge_indices = self.connectivity_graph(x_topology)
+        batch_size = x_topology.shape[0]
+        num_nodes = x_topology.shape[1]
+        batch = torch.arange(batch_size).repeat_interleave(num_nodes).to(x_topology.device)
 
         # Step 2: Obtain node features from Temporal Encoder
         temporal_features = self.temporal_encoder(x_temporal)
+
         temporal_features = temporal_features.unsqueeze(1).repeat(1, num_nodes, 1)
 
-        spatial_features = self.spatial_decoder(sampled_edge_indices, temporal_features)
+        # Step 1: Generate adjacency matrices and edge indices
+        # Ajout de temporal features dans para learner
+        sampled_edge_indices = self.connectivity_graph(x_topology, x_temporal)
+        self.sampled_edge_indices = sampled_edge_indices
+
+        spatial_features = self.spatial_decoder(sampled_edge_indices, temporal_features, batch)
+
+        if not self.training:
+            attentions = self.spatial_decoder.cached_attention
+            cat_attentions = torch.cat(attentions, dim=1)
+            mean_attentions = cat_attentions.mean(dim=1)
+            visualize_saliency_with_mne(mean_attentions, sampled_edge_indices)
+            visualize_saliency_3d_with_topology(mean_attentions, sampled_edge_indices, self.coords,
+                                                self.info)
+
         spatial_features = spatial_features.mean(dim=-1)
 
         temporal_features = self.temporal_cnn(temporal_features)
 
-        cat_features = torch.cat((temporal_features, spatial_features), 1)
+        spatial_features = spatial_features.unsqueeze(-1)
+        cat_features = torch.cat((temporal_features, spatial_features), 1)  # temporal_features[50,64]
 
         output = self.classifier(cat_features)
 
         return output
-    
+
     def explain_temporal_cnn(self, test_loader, device):
         """
         Generate Grad-CAM and visualize the results to explain the predictions.
@@ -69,7 +89,7 @@ class GGN(nn.Module):
 
                 # Passer les données à travers l'encodeur
                 num_nodes = self.in_channels
-                
+
                 hn = self.temporal_encoder(x_temporal)
                 hn = hn.unsqueeze(1).repeat(1, num_nodes, 1)
 
@@ -107,7 +127,8 @@ class GGN(nn.Module):
                 ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.5, origin='lower')
 
                 # Ajouter une barre de couleur
-                cbar = plt.colorbar(ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.5, origin='lower'), ax=ax)
+                cbar = plt.colorbar(
+                    ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.5, origin='lower'), ax=ax)
                 cbar.set_label("Niveau d'attention temporelle")
 
                 # Étiquettes et titre
@@ -125,4 +146,3 @@ class GGN(nn.Module):
         finally:
             if original_mode:
                 self.train()
-

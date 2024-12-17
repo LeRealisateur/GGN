@@ -2,131 +2,71 @@ from abc import ABC
 
 import torch
 from torch import nn
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import softmax
-import torch.nn.functional as F
-from contextlib import contextmanager
+from torch_geometric.nn import global_mean_pool, GATConv
 
 
 class SpatialDecoder(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, device):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, heads=4, dropout=0.6):
         """
         Args:
-            in_channels: Number of input node feature channels.
-            hidden_channels: Number of hidden channels.
-            out_channels: Number of output node feature channels.
-            num_layers: Number of attentive graph convolution layers.
-            device: Device to run computations on (e.g., 'cuda' or 'cpu').
+            in_channels (int): Number of input node feature channels.
+            hidden_channels (int): Number of hidden channels.
+            out_channels (int): Number of output node feature channels.
+            num_layers (int): Number of GATConv layers.
+            heads (int): Number of attention heads in GATConv.
+            dropout (float): Dropout rate for GATConv layers.
         """
         super(SpatialDecoder, self).__init__()
-        layers = [AttentiveGraphConvLayer(in_channels, hidden_channels, device)]
+
+        self.pre_transform = nn.Linear(in_channels, hidden_channels)
+
+        self.convs = nn.ModuleList()
+        self.activations = nn.ModuleList()
+        self.cached_attention = []
+
+        self.convs.append(
+            GATConv(hidden_channels, hidden_channels, heads=heads, concat=True, dropout=dropout, add_self_loops=False))
+        self.activations.append(nn.ReLU())
+
+        # Hidden GATConv layers
         for _ in range(num_layers - 2):
-            layers.append(AttentiveGraphConvLayer(hidden_channels, hidden_channels, device))
-        layers.append(AttentiveGraphConvLayer(hidden_channels, out_channels, device))
-        self.layers = nn.ModuleList(layers)
-        self.activation = nn.ELU()
+            self.convs.append(GATConv(hidden_channels * heads, hidden_channels, heads=heads, concat=True, dropout=dropout,
+                                      add_self_loops=False))
+            self.activations.append(nn.ReLU())
 
-    def forward(self, sampled_edge_indices, temporal_features, edge_features=None):
+        # Last GATConv layer
+        self.convs.append(
+            GATConv(hidden_channels * heads, out_channels, heads=1, concat=False, dropout=dropout, add_self_loops=False))
+        self.activations.append(nn.ReLU())
+
+        # Pooling layer to aggregate node features into graph-level features
+        self.pool = global_mean_pool
+
+    def forward(self, edge_index, x, batch):
         """
         Args:
-            sampled_edge_indices: (batch_size, num_nodes, num_nodes) Adjacency matrix (sampled edges).
-            temporal_features: (batch_size, num_nodes, feature_dim) Node features.
-            edge_features: (batch_size, num_nodes, edge_dim) Optional edge-specific features.
+            edge_index (Tensor): Graph connectivity in COO format with shape [2, num_edges].
+            x (Tensor): Node feature matrix with shape [num_nodes, in_channels].
+            batch (Tensor): Batch vector assigning each node to a specific graph in the batch with shape [num_nodes].
 
         Returns:
-            Node-level representations.
+            Tensor: Graph-level representations with shape [num_graphs, out_channels].
         """
-        batch_size, num_nodes, _ = temporal_features.size()
+        batch_size, num_nodes, in_channels = x.shape
+        edges_per_graph = (num_nodes * (num_nodes - 1)) // 2
+        # Reshape node features from [50, 64, 128] to [3200, 128] 3200 because 64 nodes * batch size
+        x = x.view(-1, in_channels)
+        x = self.pre_transform(x)
 
-        # Convert sampled_edge_indices to edge_index format (COO)
-        edge_index_list = []
-        edge_batch_list = []
+        # Pass through GATConv layers
+        for i, (conv, activation) in enumerate(zip(self.convs, self.activations)):
+            x, (edge_index, attention_weights) = conv(x, edge_index, return_attention_weights=True)
+            if i == len(self.convs) - 1:
+                # Reshape attention weights to [batch_size, num_edges, 1]
+                attention_weights = attention_weights.view(batch_size, edges_per_graph, -1)
+                mean_alpha = attention_weights.mean(dim=0)  # Average across batch dimension
+                self.cached_attention.append(mean_alpha)
+            x = activation(x)
 
-        for b in range(batch_size):
-            edges = torch.nonzero(sampled_edge_indices[b], as_tuple=False).t()  # (2, num_edges)
-            edge_index_list.append(edges)
-            edge_batch_list.append(torch.full((edges.size(1),), b, dtype=torch.long, device=temporal_features.device))
-
-        edge_index = torch.cat(edge_index_list, dim=1)  # (2, total_edges)
-        batch_indices = torch.cat(edge_batch_list, dim=0)  # (total_edges,)
-
-        # Flatten temporal features for batched graph processing
-        x = temporal_features.view(-1, temporal_features.size(-1))  # (batch_size * num_nodes, feature_dim)
-
-        for layer in self.layers:
-            x = layer(x, edge_index, batch=batch_indices, edge_features=edge_features)
-            x = self.activation(x)
-
-        # Reshape back to (batch_size, num_nodes, out_channels)
-        x = x.view(batch_size, num_nodes, -1)
+        x = self.pool(x, batch)
         return x
-    
-    @contextmanager
-    def evaluation_mode(self):
-        original_mode = self.training
-        self.eval()
-        try:
-            yield self
-        finally:
-            if original_mode:
-                self.train()
-
-
-class AttentiveGraphConvLayer(MessagePassing, ABC):
-    def __init__(self, in_channels, hidden_channels, device):
-        super(AttentiveGraphConvLayer, self).__init__(aggr='mean')
-        self.linear = nn.Linear(in_channels, hidden_channels, bias=False)
-        self.attention = nn.Parameter(torch.Tensor(2 * hidden_channels, 1).to(device))
-        nn.init.xavier_uniform_(self.attention.data, gain=1.414)
-        self.leaky_relu = nn.LeakyReLU(0.2)
-
-    def forward(self, x, edge_index, batch=None, edge_features=None):
-        """
-        Args:
-            x: (total_nodes, feature_dim) Flattened node features.
-            edge_index: (2, total_edges) Edge indices in COO format.
-            batch: (total_edges,) Batch indices for each edge.
-            edge_features: Optional additional edge features.
-
-        Returns:
-            Updated node features.
-        """
-        x = self.linear(x)  # Transform node features
-        return self.propagate(edge_index, x=x, batch=batch, edge_features=edge_features)
-
-    def message(self, x_i, x_j, edge_index_i, batch, edge_features=None):
-        """
-        Compute attention-weighted messages.
-        Args:
-            x_i: (num_edges, hidden_dim) Features of source nodes.
-            x_j: (num_edges, hidden_dim) Features of target nodes.
-            edge_index_i: Indices of the target nodes.
-            batch: Batch indices for edges.
-            edge_features: (num_edges, edge_dim), optional.
-
-        Returns:
-            Attention-weighted messages.
-        """
-        x_cat = torch.cat([x_i, x_j], dim=-1)  # Concatenate source and target features
-        alpha = (x_cat @ self.attention).squeeze(-1)  # Compute attention scores
-        alpha = self.leaky_relu(alpha)
-        alpha = softmax(alpha, edge_index_i)  # Apply softmax for normalization
-
-        # Optional edge feature integration
-        if edge_features is not None:
-            alpha = alpha * edge_features
-
-        return x_j * alpha.unsqueeze(-1)  # Weight messages by attention scores
-
-    def update(self, aggr_out):
-        return aggr_out
-    
-    @contextmanager
-    def evaluation_mode(self):
-        original_mode = self.training
-        self.eval()
-        try:
-            yield self
-        finally:
-            if original_mode:
-                self.train()
