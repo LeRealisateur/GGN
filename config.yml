@@ -1,7 +1,7 @@
 # Configuration du projet
 project_config:
     seed: 42
-    running_model: "EEGDeformer"
+    running_model: "GGN"
 
 # Configuration de l'ensemble de données
 data:
