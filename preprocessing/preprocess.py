@@ -134,7 +134,7 @@ def combine_topologies(distance_topo, correlation_topology, alpha=0.5):
     torch.save(combined_topology, topology_save_path)
 
 
-def train_test_split_files(preprocessed_data_path, output_path, subjects_id, test_size=0.2, random_state=42):
+def train_test_split_files(subjects_id, preprocessed_data_path, output_path, test_size=0.2, random_state=42):
     """
     Split files into train, validation, and test sets while maintaining task structure.
 
@@ -209,7 +209,7 @@ def preprocess_data(config):
     test_size = config['data']['train_test_split']['test_size']
     random_state = config['data']['train_test_split']['random_state']
 
-    train_test_split_files(preprocessed_data_path, split_data_save_path, subjects_id, test_size, random_state)
+    train_test_split_files(subjects_id, preprocessed_data_path, split_data_save_path, test_size, random_state)
 
     raw = read_epochs(headset_file, preload=True)
     distance_topo = generate_distance_topology(raw)
