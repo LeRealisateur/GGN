@@ -6,8 +6,6 @@ import numpy as np
 from scipy import signal
 import mne
 
-# Machine Learning et Deep Learning
-from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import torch
@@ -18,7 +16,6 @@ import matplotlib.pyplot as plt
 # import plotly.express as px
 
 # Gestion de Notebooks
-# import papermill as pm
 import ipywidgets as widgets
 
 # Utilitaires
@@ -61,6 +58,8 @@ subjects_id = config['data']['subjects']
 
 bids_root = config['data']['path']
 
+save_path = config['output']['results_save_path']
+
 if not subjects_id:
     subjects_id = [
         d for d in os.listdir(bids_root)
@@ -89,11 +88,12 @@ for subject in subjects_id:
 
         train_loader, val_loader, test_loader = dataset.create_dataloader([subject], config)
 
-        model = GGN.GGN(**config['models']['GGN']['parameters'], coords=coords, info=info, device=device)
+        model = GGN.GGN(**config['models']['GGN']['parameters'], subject_id=subject, coords=coords, info=info,
+                        save_path=save_path)
 
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        num_epochs = 50
+        num_epochs = 1
 
         # Train and validate the model
         train.train(model, train_loader, val_loader, criterion, optimizer, num_epochs, device)
