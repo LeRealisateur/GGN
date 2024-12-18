@@ -1,3 +1,4 @@
+import os
 from os import path
 
 import matplotlib.pyplot as plt
@@ -19,17 +20,31 @@ channel_names = [
 ]
 
 
-def visualize_saliency_with_mne(attention_tensor, edge_indices, title="Saliency Connectivity", threshold=0.1):
+def visualize_saliency_with_mne(
+        attention_tensor, edge_indices,
+        subject_id=None, epoch=None, title="Saliency Connectivity",
+        threshold=0.1, save_path=None
+):
     """
-    Visualizes saliency using MNE's connectivity circle.
-    """
+    Visualizes saliency using MNE's connectivity circle and optionally saves the plot to a specified folder.
 
+    Parameters:
+    - attention_tensor: Attention weights.
+    - edge_indices: Edge indices for connectivity.
+    - channel_names: List of channel names.
+    - subject_id: Identifier for the subject (optional).
+    - epoch: Epoch number (optional).
+    - title: Title of the plot.
+    - threshold: Threshold for attention weights to include in the plot.
+    - save_path: File path to save the plot (optional).
+    """
     num_nodes = len(channel_names)
 
     # Initialize connectivity matrix
     connectivity_matrix = np.zeros((num_nodes, num_nodes))
     edge_indices_single = edge_indices[:, :2016]
     attention_tensor = attention_tensor.flatten()
+
     # Populate connectivity matrix with attention weights
     for i in range(attention_tensor.shape[0]):
         src = edge_indices_single[0, i]
@@ -42,33 +57,54 @@ def visualize_saliency_with_mne(attention_tensor, edge_indices, title="Saliency 
     if np.max(connectivity_matrix) > 0:
         connectivity_matrix /= np.max(connectivity_matrix)
 
+    # Construct the dynamic title
+    dynamic_title = title
+    if subject_id is not None:
+        dynamic_title += f" subject {subject_id}"
+    if epoch is not None:
+        dynamic_title += f" epoch {epoch + 1}"
+
+    fig = plt.figure(figsize=(8, 8), facecolor='black')
+    ax = fig.add_subplot(111, polar=True)  # Explicitly create polar axes
+
     # Plot the connectivity circle
     plot_connectivity_circle(
         con=connectivity_matrix,
         node_names=channel_names,
-        title=title,
-        vmin=0, vmax=1,
-        show=True
+        n_lines=300,
+        ax=ax,
+        title=dynamic_title,
+        show=False
     )
 
+    if save_path is not None:
+        if os.path.isdir(save_path):
+            save_path = os.path.join(save_path, f'{dynamic_title}.png')
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, format='png', dpi=300)
+        plt.close()
 
-def visualize_saliency_3d_with_topology(attention_tensor, edge_indices, coords, info, threshold=0.1):
-    # fig = create_3d_figure(size=(800, 800))
+
+def visualize_saliency_3d_with_topology(attention_tensor, edge_indices, coords, info, subject_id, epoch, save_path,
+                                        threshold=0.1):
+    fig = create_3d_figure(size=(800, 800))
+
+    title = f"3D map for subject {subject_id} at epoch {epoch}.png"
 
     sphere = mne.make_sphere_model(r0="auto", head_radius="auto", info=info)
-    fig = mne.viz.plot_alignment(
+    mne.viz.plot_alignment(
         # Plot options
         show_axes=True,
         dig="fiducials",
         surfaces="head",
-        trans=mne.Transform("head", "mri", trans=np.eye(4)),  # identity
+        trans=mne.Transform("head", "mri", trans=np.eye(4)),
         bem=sphere,
         info=info,
+        fig = fig,
     )
 
     # Determine connectivity matrix
     if edge_indices is not None:
-        # Flatten if needed
         attention_tensor = attention_tensor.flatten()
         num_channels = coords.shape[0]
         connectivity_matrix = np.zeros((num_channels, num_channels))
@@ -115,32 +151,13 @@ def visualize_saliency_3d_with_topology(attention_tensor, edge_indices, coords, 
                     line_width=lw
                 )
 
-
     # Adjust the 3D view
     set_3d_view(
         fig,
-        azimuth=40,
-        elevation=80,
-        distance=0.6,
+        azimuth=135, elevation=80,
         focalpoint=(0.0, 0.0, 0.0),
     )
+    save_path = os.path.join(save_path, title)
+    fig.plotter.screenshot(save_path)
+    plotter.close()
 
-    fig.plotter.screenshot('test.png')
-
-
-def aggregate_node_attention(edge_index, attention_weights, num_nodes):
-    """
-    Aggregates attention weights to node-level scores.
-
-    Args:
-        edge_index (Tensor): Edge index of shape [2, num_edges].
-        attention_weights (Tensor): Attention weights of shape [num_edges, num_heads].
-        num_nodes (int): Total number of nodes.
-
-    Returns:
-        Tensor: Node-level attention scores of shape [num_nodes].
-    """
-    node_attention = torch.zeros(num_nodes, device=attention_weights.device)
-    for i in range(attention_weights.shape[0]):
-        pass
-        # node_attention.scatter_add()
