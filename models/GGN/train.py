@@ -16,7 +16,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, num_epochs, dev
 
             # Forward pass
             optimizer.zero_grad()
-            output = model(x_temporal, x_topology)
+            output = model(x_temporal, x_topology, epoch=epoch)
             loss = criterion(output, targets)
 
             # Backward pass
@@ -33,7 +33,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, num_epochs, dev
             with torch.no_grad():
                 for x_temporal, x_topology, targets in val_loader:
                     x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device), targets.to(device)
-                    output = model(x_temporal, x_topology)
+                    output = model(x_temporal, x_topology, epoch=epoch)
                     val_loss += criterion(output, targets).item()
 
             print(f"Validation Loss: {val_loss / len(val_loader):.4f}")
@@ -65,7 +65,7 @@ def test(model, test_loader, criterion, device):
             for x_temporal, x_topology, targets in test_loader:
                 x_temporal, x_topology, targets = x_temporal.to(device), x_topology.to(device), targets.to(device)
 
-                output = model(x_temporal, x_topology)
+                output = model(x_temporal, x_topology, 'test')
                 test_loss += criterion(output, targets).item()
 
                 _, predicted = torch.max(output, 1)

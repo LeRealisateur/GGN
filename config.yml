@@ -41,3 +41,4 @@ output:
   save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
   processed_data_save_path: "data/processed"
   split_data_save_path: "data/split"
+  results_save_path: "results/"
