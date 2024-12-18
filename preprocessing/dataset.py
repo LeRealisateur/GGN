@@ -38,6 +38,10 @@ class EEGDataset(Dataset):
                 task_label = task_dict[task][0]
                 self.labels.extend([task_label] * len(task_files))
                 self.topologies.extend([epoch_topology] * len(task_files))
+                
+        if self.files:
+            first_epoch = read_epochs(self.files[0], preload=False)
+            self.channel_names = first_epoch.ch_names
 
     def __len__(self):
         return len(self.files)
