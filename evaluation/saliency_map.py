@@ -85,6 +85,93 @@ def visualize_saliency_with_mne(
         plt.close()
 
 
+def aggregate_connection_to_channel_attention(attention_connection, edge_indices, num_channels):
+    """
+    Aggregates connection-wise attention scores to channel-wise scores by assigning each
+    connection's score to both involved electrodes.
+
+    Parameters:
+    - attention_connection: 1D array or torch.Tensor with attention scores per connection (num_connections).
+    - edge_indices: 2D array with shape (2, num_connections), representing connections between channels.
+    - num_channels: Total number of channels.
+
+    Returns:
+    - channel_attention: 1D NumPy array with aggregated attention scores per channel.
+    """
+    attention_connection = attention_connection.cpu().detach().numpy()
+    edge_indices = edge_indices.cpu().detach().numpy()
+    edge_indices_single = edge_indices[:, :2016]
+    channel_attention = np.zeros(num_channels)
+
+    # Iterate over all connections and assign scores
+    for i in range(attention_connection.shape[0]):
+        src = edge_indices_single[0, i]
+        tgt = edge_indices_single[1, i]
+        score = attention_connection[i]
+        channel_attention[src] += score
+        channel_attention[tgt] += score
+
+    return channel_attention
+
+
+def visualize_saliency_topomap(
+        attention_tensor,
+        edge_indices,
+        subject_id=None,
+        epoch=None,
+        threshold=0.4,
+        save_path=None,
+        montage_name='standard_1020'
+):
+    title = f"Saliency_Topomap_for_subject_{subject_id}_at_epoch_{epoch}"
+
+    channel_attention = aggregate_connection_to_channel_attention(attention_tensor, edge_indices, 64)
+
+    attention_thresh = np.copy(channel_attention)
+    attention_thresh[attention_thresh < threshold] = 0
+
+    attention_norm = attention_thresh / np.max(attention_thresh)
+
+    info = mne.create_info(ch_names=channel_names, sfreq=1000.,
+                           ch_types='eeg')  # Adjust sfreq and ch_types as needed
+
+    # Set montage for sensor locations
+    montage = mne.channels.make_standard_montage(montage_name)
+    info.set_montage(montage)
+
+    evoked = mne.EvokedArray(attention_norm[:, np.newaxis], info)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    im, cm = mne.viz.plot_topomap(
+        evoked.data[:, 0],
+        evoked.info,
+        axes=ax,
+        show=False,
+        cmap='viridis',
+        vlim=(0, 1),
+        sensors=True,
+        contours=0
+    )
+    ax.set_title(title, color='black', fontsize=14)
+
+    cbar = plt.colorbar(im, ax=ax, shrink=0.7)
+    cbar.set_label('Normalized Attention Weight', color='black')
+    cbar.ax.yaxis.set_tick_params(color='black')
+    plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='black')
+
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+
+    if save_path is not None:
+        if os.path.isdir(save_path):
+            save_path = os.path.join(save_path, title)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        plt.show()
+
+
 def visualize_saliency_3d_with_topology(attention_tensor, edge_indices, coords, info, subject_id, epoch, save_path,
                                         threshold=0.1):
     fig = create_3d_figure(size=(800, 800))

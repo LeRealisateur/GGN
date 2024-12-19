@@ -4,7 +4,8 @@ import torch
 import numpy as np
 from torch import nn
 
-from evaluation.saliency_map import visualize_saliency_with_mne, visualize_saliency_3d_with_topology
+from evaluation.saliency_map import visualize_saliency_with_mne, visualize_saliency_3d_with_topology, \
+    visualize_saliency_topomap
 from .connectivity_graph_generator import ConnectivityGraphGenerator
 from .spatial_decoder import SpatialDecoder
 from .temporal_cnn import TemporalCNN
@@ -54,6 +55,7 @@ class GGN(nn.Module):
             mean_attentions = cat_attentions.mean(dim=1)
             visualize_saliency_with_mne(mean_attentions, sampled_edge_indices, subject_id=self.subject_id, epoch=epoch,
                                         save_path=self.save_path)
+            visualize_saliency_topomap(mean_attentions, sampled_edge_indices, self.subject_id, epoch, save_path=self.save_path)
             visualize_saliency_3d_with_topology(mean_attentions, sampled_edge_indices, self.coords,
                                                 self.info, subject_id=self.subject_id, epoch=epoch,
                                                 save_path=self.save_path)
