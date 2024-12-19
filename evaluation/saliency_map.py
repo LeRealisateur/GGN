@@ -123,7 +123,7 @@ def visualize_saliency_topomap(
         save_path=None,
         montage_name='standard_1020'
 ):
-    title = f"Saliency_Topomap_for_subject_{subject_id}_at_epoch_{epoch}"
+    title = f"Saliency_Topomap_for_subject_{subject_id}_at_epoch_{epoch}.png"
 
     channel_attention = aggregate_connection_to_channel_attention(attention_tensor, edge_indices, 64)
 
@@ -147,25 +147,31 @@ def visualize_saliency_topomap(
         evoked.info,
         axes=ax,
         show=False,
-        cmap='viridis',
+        cmap='inferno',
         vlim=(0, 1),
-        sensors=True,
+        sensors=False,
         contours=0
     )
     ax.set_title(title, color='black', fontsize=14)
 
+    pos = mne.channels.find_layout(info).pos[:, :2]
+    pos[:, 1] -= 0.02
+    for i, (x, y) in enumerate(pos):
+        ch_name = info['ch_names'][i]  # Channel name
+        ax.text(x, y, ch_name, fontsize=6, ha='center', va='center', color='black')
+
+    mne.viz.plot_sensors(info, axes=ax, kind='topomap', show_names=True, pointsize=0.8)
+
     cbar = plt.colorbar(im, ax=ax, shrink=0.7)
     cbar.set_label('Normalized Attention Weight', color='black')
-    cbar.ax.yaxis.set_tick_params(color='black')
-    plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='black')
 
     fig.patch.set_facecolor('white')
     ax.set_facecolor('white')
 
     if save_path is not None:
         if os.path.isdir(save_path):
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
             save_path = os.path.join(save_path, title)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
         plt.close(fig)
     else:
