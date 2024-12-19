@@ -6,8 +6,7 @@ import mne
 import numpy as np
 from mne.viz import create_3d_figure, set_3d_view
 from mne_connectivity.viz import plot_connectivity_circle
-from mne.viz.backends.renderer import _get_renderer
-import pyvista as pv
+
 import torch
 
 channel_names = [
@@ -176,81 +175,4 @@ def visualize_saliency_topomap(
         plt.close(fig)
     else:
         plt.show()
-
-
-def visualize_saliency_3d_with_topology(attention_tensor, edge_indices, coords, info, subject_id, epoch, save_path,
-                                        threshold=0.1):
-    fig = create_3d_figure(size=(800, 800))
-
-    title = f"3D map for subject {subject_id} at epoch {epoch}.png"
-
-    sphere = mne.make_sphere_model(r0="auto", head_radius="auto", info=info)
-    mne.viz.plot_alignment(
-        # Plot options
-        show_axes=True,
-        dig="fiducials",
-        surfaces="head",
-        trans=mne.Transform("head", "mri", trans=np.eye(4)),
-        bem=sphere,
-        info=info,
-        fig = fig,
-    )
-
-    # Determine connectivity matrix
-    if edge_indices is not None:
-        attention_tensor = attention_tensor.flatten()
-        num_channels = coords.shape[0]
-        connectivity_matrix = np.zeros((num_channels, num_channels))
-        for i in range(attention_tensor.shape[0]):
-            src = edge_indices[0, i]
-            tgt = edge_indices[1, i]
-            val = attention_tensor[i]
-            if val >= threshold:
-                connectivity_matrix[src, tgt] = val
-                connectivity_matrix[tgt, src] = val
-    else:
-        # attention_tensor should be a matrix of shape (n_channels, n_channels)
-        connectivity_matrix = attention_tensor.copy()
-        connectivity_matrix[connectivity_matrix < threshold] = 0
-        num_channels = connectivity_matrix.shape[0]
-
-    # Normalize for better visual contrast
-    max_val = np.max(connectivity_matrix)
-    if max_val > 0:
-        connectivity_matrix /= max_val
-
-    plotter = fig.plotter
-
-    # Draw edges
-    max_width = 5.0
-    for i in range(num_channels):
-        for j in range(i + 1, num_channels):
-            val = connectivity_matrix[i, j]
-            if val > 0:
-                lw = 1 + val * (max_width - 1)
-                x = [coords[i, 0], coords[j, 0]]
-                y = [coords[i, 1], coords[j, 1]]
-                z = [coords[i, 2], coords[j, 2]]
-
-                # Create a line segment using PyVista
-                line = pv.Line((x[0], y[0], z[0]), (x[1], y[1], z[1]))
-
-                # Add the line to the plotter
-                # Use opacity or color to represent 'val' as desired.
-                plotter.add_mesh(
-                    line,
-                    color=(0, 0, 1),
-                    opacity=val,  # use attention value as transparency
-                    line_width=lw
-                )
-
-    # Adjust the 3D view
-    set_3d_view(
-        fig,
-        azimuth=135, elevation=80,
-        focalpoint=(0.0, 0.0, 0.0),
-    )
-    save_path = os.path.join(save_path, title)
-    fig.plotter.screenshot(save_path)
-    plotter.close()
 
