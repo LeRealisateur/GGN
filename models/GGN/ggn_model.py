@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from torch import nn
 
-from evaluation.saliency_map import visualize_saliency_with_mne, visualize_saliency_3d_with_topology, \
+from evaluation.saliency_map import visualize_saliency_with_mne, \
     visualize_saliency_topomap
 from .connectivity_graph_generator import ConnectivityGraphGenerator
 from .spatial_decoder import SpatialDecoder
