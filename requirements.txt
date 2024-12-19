@@ -2,7 +2,6 @@
 
 matplotlib
 mne
-mne-connectivity
 numpy
 torch
 torchvision

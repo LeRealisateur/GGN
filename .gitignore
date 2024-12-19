@@ -1,4 +1,9 @@
-/data/raw/
+data/
+data
+results/
+results
+models/trained/
+models/trained
 .idea
 __pycache__/
 **/.ipynb_checkpoints/

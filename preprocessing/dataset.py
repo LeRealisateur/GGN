@@ -105,12 +105,14 @@ def create_dataloader(subjects, config):
         "thermalactive": [1, "pain"],
         "thermalpassive": [1, "pain"],
     }
+    
+    generator = torch.Generator().manual_seed(config['project_config']['seed'])
 
     train_dataset = EEGDataset(os.path.join(split_data_save_path, "train"), subjects, tasks, task_dict)
     val_dataset = EEGDataset(os.path.join(split_data_save_path, "val"), subjects, tasks, task_dict)
     test_dataset = EEGDataset(os.path.join(split_data_save_path, "test"), subjects, tasks, task_dict)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
