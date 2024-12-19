@@ -1,5 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+
 matplotlib
 mne
+mne-connectivity
 numpy
 torch
 torchvision
@@ -21,3 +24,5 @@ tensorboard
 tqdm
 autoreject
 lime
+PyQt5
+tqdm

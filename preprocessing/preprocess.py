@@ -81,6 +81,7 @@ def create_epochs(raw, t_min=0, t_max=4):
     epochs = mne.Epochs(raw, events, event_id, t_min, t_max, baseline=None)
     return epochs
 
+
 def get_labels(epochs, mapping):
     y = epochs.events[:, 2]
     y = pd.Series(y).map(mapping)
@@ -110,7 +111,9 @@ def generate_distance_topology(epoch_data):
     squared_diff = diff ** 2
     squared_distances = squared_diff.sum(axis=2)
     conn_matrix = np.sqrt(squared_distances)
-
+    data_path = 'data'
+    distance_topology_save_path = os.path.join(data_path, "distance_topology.pt")
+    torch.save(torch.tensor(conn_matrix), distance_topology_save_path)
     return torch.tensor(conn_matrix)
 
 
@@ -212,6 +215,7 @@ def preprocess_data(config):
     distance_topo = generate_distance_topology(raw)
     correlation_topology = generate_correlation_topology(raw)
     combine_topologies(distance_topo, correlation_topology)
+
 
 def dataloader_without_topology_to_numpy(loader):
     X, y = [], []
