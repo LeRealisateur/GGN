@@ -79,7 +79,6 @@ class GGN(nn.Module):
         Returns:
         - Grad-CAM visualized on the temporal data for all batches.
         """
-
         self.temporal_cnn.to(device)
 
         with self.temporal_cnn.evaluation_mode():
@@ -89,8 +88,7 @@ class GGN(nn.Module):
                     targets = targets.to(device)
 
                     # Pass through temporal CNN
-                    temporal_features = self.temporal_encoder(x_temporal).unsqueeze(1).repeat(1, 128, 1).permute(0, 2,
-                                                                                                                 1)
+                    temporal_features = self.temporal_encoder(x_temporal).unsqueeze(1).repeat(1, 128, 1).permute(0, 2, 1)
                     cam_extractor = GradCAM(self.temporal_cnn, target_layer='conv2')
                     outputs = self.temporal_cnn(temporal_features)
 
@@ -107,12 +105,12 @@ class GGN(nn.Module):
                     time_steps = input_image.shape[1]
                     channel_names = test_loader.dataset.channel_names
 
-                    # Plot Grad-CAM with better readability
+                    # Plot Grad-CAM with all channels
                     fig, ax = plt.subplots(figsize=(12, 12))  # Larger figure
                     spacing = 25  # Increase spacing between channels
 
-                    # Plot fewer raw signals with slightly thicker lines
-                    for i in range(0, input_image.shape[0], 2):  # Plot every 2nd channel
+                    # Plot all raw signals
+                    for i in range(input_image.shape[0]):  # Include all channels
                         ax.plot(range(time_steps), input_image[i] + i * spacing,
                                 alpha=0.8, color='black', linewidth=1.5)  # Thicker lines
 
@@ -121,11 +119,11 @@ class GGN(nn.Module):
                     grad_cam_image = cam_aggregated[np.newaxis, :]
                     ax.imshow(grad_cam_image, aspect='auto', extent=extent, cmap='jet', alpha=0.4, origin='lower')
 
-                    # Set Y-ticks with fewer channel names
+                    # Set Y-ticks with all channel names
                     if channel_names:
-                        y_positions = np.arange(0, len(channel_names) * spacing, spacing * 2)
+                        y_positions = np.arange(0, len(channel_names) * spacing, spacing)
                         ax.set_yticks(y_positions)
-                        ax.set_yticklabels(channel_names[::2], fontsize=10, rotation=45, ha="right")
+                        ax.set_yticklabels(channel_names, fontsize=10, rotation=45, ha="right")
 
                     # Add colorbar and labels
                     cbar = plt.colorbar(
