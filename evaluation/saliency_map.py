@@ -122,57 +122,69 @@ def visualize_saliency_topomap(
         save_path=None,
         montage_name='standard_1020'
 ):
-    title = f"Saliency_Topomap_for_subject_{subject_id}_at_epoch_{epoch}.png"
+    """
+    Visualize saliency scores on a topographic map using MNE.
 
+    Parameters:
+    - attention_tensor: 1D array or torch.Tensor with attention scores.
+    - edge_indices: 2D array representing connections between channels.
+    - subject_id: Identifier for the subject (optional).
+    - epoch: Epoch number (optional).
+    - threshold: Threshold for attention scores (default: 0.4).
+    - save_path: Path to save the topomap image (optional).
+    - montage_name: Name of the EEG montage (default: 'standard_1020').
+    """
+    # Dynamic title
+    title = f"Saliency Topomap for Subject {subject_id} at Epoch {epoch}" if subject_id is not None and epoch is not None else "Saliency Topomap"
+
+    # Aggregate attention to channels
     channel_attention = aggregate_connection_to_channel_attention(attention_tensor, edge_indices, 64)
 
+    # Apply threshold
     attention_thresh = np.copy(channel_attention)
     attention_thresh[attention_thresh < threshold] = 0
 
-    attention_norm = attention_thresh / np.max(attention_thresh)
+    # Normalize attention scores
+    attention_norm = attention_thresh / np.max(attention_thresh) if np.max(attention_thresh) > 0 else attention_thresh
 
-    info = mne.create_info(ch_names=channel_names, sfreq=1000.,
-                           ch_types='eeg')  # Adjust sfreq and ch_types as needed
-
-    # Set montage for sensor locations
+    # Create MNE info and montage
+    info = mne.create_info(ch_names=channel_names, sfreq=1000., ch_types='eeg')
     montage = mne.channels.make_standard_montage(montage_name)
     info.set_montage(montage)
 
+    # Create EvokedArray for topomap
     evoked = mne.EvokedArray(attention_norm[:, np.newaxis], info)
 
+    # Determine vlim dynamically
+    min_val = evoked.data[:, 0].min()
+    max_val = evoked.data[:, 0].max()
+    abs_max = max(abs(min_val), abs(max_val))
+
+    # Create figure and plot topomap
     fig, ax = plt.subplots(figsize=(6, 6))
-    im, cm = mne.viz.plot_topomap(
+    im, _ = mne.viz.plot_topomap(
         evoked.data[:, 0],
         evoked.info,
         axes=ax,
-        show=False,
-        cmap='inferno',
-        vlim=(0, 1),
-        sensors=False,
-        contours=0
+        cmap='RdBu_r',
+        vlim=(-abs_max, abs_max),
+        sensors=True,
+        names=channel_names,
+        contours=8,
+        extrapolate="head"
     )
-    ax.set_title(title, color='black', fontsize=14)
 
-    pos = mne.channels.find_layout(info).pos[:, :2]
-    pos[:, 1] -= 0.02
-    for i, (x, y) in enumerate(pos):
-        ch_name = info['ch_names'][i]  # Channel name
-        ax.text(x, y, ch_name, fontsize=6, ha='center', va='center', color='black')
+    # Add title
+    fig.suptitle(title, color='black', fontsize=16, y=0.98)
 
-    mne.viz.plot_sensors(info, axes=ax, kind='topomap', show_names=True, pointsize=0.8)
-
-    cbar = plt.colorbar(im, ax=ax, shrink=0.7)
-    cbar.set_label('Normalized Attention Weight', color='black')
-
-    fig.patch.set_facecolor('white')
-    ax.set_facecolor('white')
-
+    # Save or display the figure
     if save_path is not None:
-        if os.path.isdir(save_path):
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            save_path = os.path.join(save_path, title)
-        plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
-        plt.close(fig)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save_file = os.path.join(save_path, title.replace(" ", "_") + ".png")
+        im.figure.savefig(save_file, format='png', dpi=300, bbox_inches='tight')
     else:
         plt.show()
+
+    # Close figure to free memory
+    plt.close(fig)
 
