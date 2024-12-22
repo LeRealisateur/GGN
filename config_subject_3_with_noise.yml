@@ -6,10 +6,7 @@ project_config:
 # Configuration de l'ensemble de données
 data:
   path: "data/raw/2023_eegpainmarkers_laval/"  # Chemin vers le fichier de données
-  subjects: [ "sub-002", "sub-003", "sub-004", "sub-005", "sub-006", "sub-007", "sub-008", "sub-009", "sub-010",
-              "sub-011", "sub-012", "sub-013", "sub-014", "sub-015", "sub-016", "sub-017",
-              "sub-019", "sub-021", "sub-022", "sub-023", "sub-024", "sub-025", "sub-026", "sub-027", "sub-028",
-              "sub-030", "sub-031", "sub-032", "sub-033", "sub-034", "sub-035", "sub-037", "sub-038" ]
+  subjects: [ "sub-003" ]
   tasks: [ "audioactive", "audiopassive", "thermalactive", "thermalpassive" ]
   sampling_rate: 256                       # Fréquence d'échantillonnage en Hz
   preprocessing:
@@ -43,6 +40,5 @@ output:
   logs_path: "logs/"                       # Chemin pour les logs d'entraînement
   save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
   processed_data_save_path: "data/processed"
-  split_data_save_path: "data/split"
-  noisy_split_data_save_path: "data/split_noisy"
-  results_save_path: "results/"
+  split_data_save_path: "data/split_noisy"
+  results_save_path: "results/noise/subject_3/"

@@ -43,6 +43,5 @@ output:
   logs_path: "logs/"                       # Chemin pour les logs d'entraînement
   save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
   processed_data_save_path: "data/processed"
-  split_data_save_path: "data/split"
-  noisy_split_data_save_path: "data/split_noisy"
-  results_save_path: "results/"
+  split_data_save_path: "data/split_noisy"
+  results_save_path: "results/noise/subject_all/"

@@ -44,5 +44,4 @@ output:
   save_best_model: true                    # Sauvegarder le meilleur modèle uniquement
   processed_data_save_path: "data/processed"
   split_data_save_path: "data/split"
-  noisy_split_data_save_path: "data/split_noisy"
-  results_save_path: "results/"
+  results_save_path: "results/no_noise/subject_all/"
