@@ -26,7 +26,8 @@ The first cell of the notebook will install all the packages needed to execute
 the code in this project.
 
 ## Dataset
-Datas are contains in data/raw folder. To preprocess and generate the needed data,
+The data can be downloaded at the drive linked provided in the instructions.
+The raw folder as to be placed in a data folder as such: data/raw. To preprocess and generate the needed data,
 you will need to execute the Preprocessing cell in the project_pipeline.ipynb.
 This script will first execute the preprocessing for extracting relevant data linked
 to the needed task and split the recording into multiple epochs keeping only electrodes
