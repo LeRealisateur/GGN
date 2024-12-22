@@ -53,7 +53,7 @@ class GGN(nn.Module):
             attentions = self.spatial_decoder.cached_attention
             cat_attentions = torch.cat(attentions, dim=1)
             mean_attentions = cat_attentions.mean(dim=1)
-            visualize_saliency_with_mne(mean_attentions, sampled_edge_indices, subject_id=self.subject_id, epoch=epoch,
+            visualize_saliency_with_mne(mean_attentions, sampled_edge_indices, epoch=epoch,
                                         save_path=self.save_path)
             visualize_saliency_topomap(mean_attentions, sampled_edge_indices, self.subject_id, epoch, save_path=self.save_path)
 

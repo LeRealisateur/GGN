@@ -20,8 +20,7 @@ channel_names = [
 
 
 def visualize_saliency_with_mne(
-        attention_tensor, edge_indices,
-        subject_id=None, epoch=None, title="Saliency Connectivity",
+        attention_tensor, edge_indices,epoch=None,
         threshold=0.1, save_path=None
 ):
     """
@@ -38,6 +37,8 @@ def visualize_saliency_with_mne(
     - save_path: File path to save the plot (optional).
     """
     num_nodes = len(channel_names)
+
+    title = f"Connection_map_at_Epoch_{epoch}"
 
     # Initialize connectivity matrix
     connectivity_matrix = np.zeros((num_nodes, num_nodes))
@@ -56,13 +57,6 @@ def visualize_saliency_with_mne(
     if np.max(connectivity_matrix) > 0:
         connectivity_matrix /= np.max(connectivity_matrix)
 
-    # Construct the dynamic title
-    dynamic_title = title
-    if subject_id is not None:
-        dynamic_title += f" subject {subject_id}"
-    if epoch is not None:
-        dynamic_title += f" epoch {epoch + 1}"
-
     fig = plt.figure(figsize=(8, 8), facecolor='black')
     ax = fig.add_subplot(111, polar=True)  # Explicitly create polar axes
 
@@ -72,15 +66,14 @@ def visualize_saliency_with_mne(
         node_names=channel_names,
         n_lines=300,
         ax=ax,
-        title=dynamic_title,
+        title=title,
         show=False
     )
 
     if save_path is not None:
-        if os.path.isdir(save_path):
-            save_path = os.path.join(save_path, f'{dynamic_title}.png')
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, format='png', dpi=300)
+        os.makedirs(save_path, exist_ok=True)
+        image_path = os.path.join(save_path, f'{title}.png')
+        plt.savefig(image_path, format='png', dpi=300)
         plt.close()
 
 
@@ -135,7 +128,7 @@ def visualize_saliency_topomap(
     - montage_name: Name of the EEG montage (default: 'standard_1020').
     """
     # Dynamic title
-    title = f"Saliency Topomap for Subject {subject_id} at Epoch {epoch}" if subject_id is not None and epoch is not None else "Saliency Topomap"
+    title = f"Saliency_Topomap_at_Epoch_{epoch}"
 
     # Aggregate attention to channels
     channel_attention = aggregate_connection_to_channel_attention(attention_tensor, edge_indices, 64)
@@ -171,7 +164,8 @@ def visualize_saliency_topomap(
         sensors=True,
         names=channel_names,
         contours=8,
-        extrapolate="head"
+        extrapolate="head",
+        show=False
     )
 
     # Add title
@@ -179,9 +173,9 @@ def visualize_saliency_topomap(
 
     # Save or display the figure
     if save_path is not None:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        save_file = os.path.join(save_path, title.replace(" ", "_") + ".png")
-        im.figure.savefig(save_file, format='png', dpi=300, bbox_inches='tight')
+        os.makedirs(save_path, exist_ok=True)
+        image_path = os.path.join(save_path, f'{title}.png')
+        im.figure.savefig(image_path, format='png', dpi=300, bbox_inches='tight')
     else:
         plt.show()
 
